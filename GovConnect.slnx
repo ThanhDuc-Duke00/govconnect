@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GovConnect.Api/GovConnect.Api.csproj" />
+    <Project Path="src/GovConnect.Application/GovConnect.Application.csproj" />
+    <Project Path="src/GovConnect.Database/GovConnect.Database.csproj" />
+    <Project Path="src/GovConnect.Domain/GovConnect.Domain.csproj" />
+    <Project Path="src/GovConnect.Infrastructure/GovConnect.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GovConnect.IntegrationTests/GovConnect.IntegrationTests.csproj" />
+    <Project Path="tests/GovConnect.UnitTests/GovConnect.UnitTests.csproj" />
+  </Folder>
+</Solution>

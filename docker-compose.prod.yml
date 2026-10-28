@@ -1,0 +1,109 @@
+services:
+  backend:
+    image: govconnect/backend:production
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: govconnect-backend
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8002"
+      # Chạy SeedThapMuoiIfMissingAsync/SeedCaoLanhIfMissingAsync (SeedData.cs) ở mỗi lần
+      # khởi động container, kể cả trên DB đã có user. Từ khi hai hàm này top-up NewsArticles
+      # theo từng Title (chỉ thêm bài chưa tồn tại) thay vì bỏ qua cả khối nếu tenant đã có
+      # tin, việc giữ biến này thường trực là an toàn cho dữ liệu — bài tin/văn bản mới thêm
+      # vào SeedData.cs sau này sẽ tự lên server thật ở lần deploy kế tiếp, không cần SSH tay.
+      #
+      # Khoá lạ trong danh sách sẽ làm app dừng ngay khi khởi động thay vì im lặng bỏ qua.
+      #
+      # LƯU Ý: seed cũng tạo tài khoản cán bộ/admin với mật khẩu cố định trong mã nguồn
+      # (Officer@123, Admin@123...) nếu email đó chưa tồn tại — đây là hệ thống phục vụ dân
+      # thật, nên đổi mật khẩu các tài khoản này ngay sau khi seed lần đầu.
+      Seed__Tenants: "thapmuoi,caolanh"
+      ConnectionStrings__Default: "Host=localhost;Port=5544;Database=govconnect;Username=admin;Password=govconnect@2026"
+      ConnectionStrings__Migrator: "Host=localhost;Port=5544;Database=govconnect;Username=admin;Password=govconnect@2026"
+      Redis: "localhost:6379"
+      Minio__Endpoint: "https://api.govconnect.phdgroup.vn"
+      Minio__AccessKey: "${MINIO_ACCESS_KEY:-minioadmin}"
+      Minio__SecretKey: "${MINIO_SECRET_KEY:-minioadmin}"
+      Minio__Bucket: govconnect
+      # No default. The old fallback was a fixed string committed to this repo, so anyone
+      # who could read the repo could mint a token for any user and any role.
+      Jwt__SigningKey: "${JWT_SIGNING_KEY}"
+      Zalo__AppId: "${ZALO_APP_ID:-4023889144671265930}"
+      # Deliberately no default: an unset secret leaves this blank, and the backend then
+      # refuses Zalo logins outright instead of falling back to the mock identity provider.
+      Zalo__AppSecret: "${ZALO_APP_SECRET}"
+      # API Key của Mini App (mini.zalo.me → Open APIs → Quản lý API). Dùng để verify chữ ký
+      # `x-zevent-signature` của webhook. Cũng không có mặc định: thiếu khoá thì
+      # POST /api/zalo/webhook trả 401 cho MỌI request thay vì tin lời người gọi.
+      Zalo__WebhookApiKey: "${ZALO_WEBHOOK_API_KEY}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8002 &&
+          printf 'GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          head -n 1 <&3 | grep -Eq '^HTTP/1\.[01] 200'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - backend-data:/app/data
+
+  # Hangfire lưu hàng đợi job trên Redis. Không có nó thì AddHangfire() ở Program.cs
+  # không chạy, IBackgroundJobClient không vào DI, và mọi lần duyệt thông báo
+  # (POST /api/notifications/{id}/approve) trả 500 dù /health vẫn báo Healthy.
+  #
+  # Backend chạy network_mode: host nên chỉ thấy cổng trên host — Redis phải publish
+  # cổng ra host, dùng chung bridge network với backend là không được.
+  #
+  # Tiền tố 127.0.0.1 là BẮT BUỘC: máy này có IP public, publish kiểu "6379:6379" sẽ
+  # bind 0.0.0.0 và phơi một Redis không mật khẩu ra Internet.
+  redis:
+    image: redis:7-alpine
+    container_name: gov-connect-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    volumes:
+      - redis-data:/data
+
+  web:
+    image: govconnect/web:production
+    build:
+      # Context repo-root để stage miniapp-preview đọc được mã nguồn miniapp/
+      # (xem web/Dockerfile). Bundle preview chép vào ảnh nginx tại /miniapp-preview/.
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: govconnect-web
+    restart: unless-stopped
+    ports:
+      - "8001:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+volumes:
+  backend-data:
+  redis-data:

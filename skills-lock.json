@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "orca-emulator-android": {
+      "source": "stablyai/orca",
+      "sourceType": "github",
+      "skillPath": "skills/orca-emulator-android/SKILL.md",
+      "computedHash": "e3ded1061ca58be5ff0e4ec020ea81157781852e0570ad1391e329bdfad8ccad"
+    }
+  }
+}

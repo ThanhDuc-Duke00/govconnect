@@ -1,0 +1,82 @@
+## .NET gitignore
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.swp
+*.sln.docstates
+
+# macOS
+.DS_Store
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+nuget.config
+
+# EF Core migrations SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Test results
+TestResults/
+coverage/
+
+# Docker data
+pgdata/
+miniodata/
+
+# Environment
+.env
+.env.production
+.env.local
+appsettings.Development.json
+.playwright-mcp
+
+# Node / frontend
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+miniapp/www/
+
+# Python
+__pycache__/
+*.pyc
+
+# Verification screenshots (local only — never commit)
+.screenshots/
+/*.png
+
+# Agent session notes — gom trong docs/agent-notes/, chỉ giữ local
+docs/agent-notes/
+
+# Local tool workspace + dev server logs; project skills are shared
+.claude/*
+!.claude/skills/
+!.claude/skills/**
+.codegraph
+.mimocode/
+.backend.log
+.backend-err.log
+.web.log
+.deploy-backups/
+
+# QA sweep screenshots (browser/Playwright evidence) — kept locally, reports stay tracked
+Test/**/evidence/**/*.png
+
+# OpenProject QA export 2026-10-02 — local working folder, not committed
+Test/openproject-20261002/
+
+# Thông tin đăng nhập máy chủ, khoá ký, secret Zalo — không bao giờ commit.
+.secrets/
+
+# Brainstorming visual companion (superpowers skill) — local scratch only
+.superpowers/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat

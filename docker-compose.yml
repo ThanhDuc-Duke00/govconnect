@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: govconnect
+      POSTGRES_PASSWORD: govconnect
+      POSTGRES_DB: govconnect
+    ports: []
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U govconnect"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    # Image MinIO community không còn cho phép pull ẩn danh từ Docker Hub/Quay.
+    # Chainguard cung cấp image MinIO công khai, được duy trì, với CLI server tương thích.
+    image: cgr.dev/chainguard/minio@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["miniodata:/data"]
+
+  # One-shot, idempotent bucket initialization used by local dev and CI.
+  # The profile keeps it out of a normal `docker compose up`; invoke explicitly with:
+  #   docker compose run --rm minio-init
+  minio-init:
+    # Biến thể -dev có /bin/sh, cần cho script khởi tạo bên dưới.
+    image: cgr.dev/chainguard/minio-client@sha256:fdb40d819ca51969c86fa76f45a67bb841759daf85d4c6ce9aa86d27f6e47ae9
+    profiles: ["tools"]
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        i=0
+        until mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1; do
+          i=$$((i+1))
+          if [ "$$i" -ge 30 ]; then
+            echo "MinIO did not become ready in time" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        mc mb --ignore-existing local/govconnect
+        mc stat local/govconnect >/dev/null
+
+  redis:
+    image: redis:7-alpine
+    # 6389 tren host: 6379 mac dinh hay bi chiem boi Redis cua project khac tren may dev.
+    ports: ["6389:6379"]
+
+volumes:
+  pgdata:
+  miniodata:
